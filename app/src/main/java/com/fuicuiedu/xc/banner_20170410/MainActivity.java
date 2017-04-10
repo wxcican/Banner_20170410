@@ -1,5 +1,7 @@
 package com.fuicuiedu.xc.banner_20170410;
 
+import android.os.Handler;
+import android.os.Message;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
@@ -11,6 +13,9 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,10 +24,14 @@ public class MainActivity extends AppCompatActivity {
     private TextView title;//显示图片标题
     private List<ImageView> imageViews;//图片的集合
     private List<View> dots;//圆点的集合
+    private int oldPosition;
+    private int currentItem;
+
+    private ScheduledExecutorService scheduledExecutorService;//用来定时轮播
 
     //存放图片id
     private int[] imageIds = new int[]{
-        R.drawable.gwx,
+            R.drawable.gwx,
             R.drawable.lc,
             R.drawable.ljx,
             R.drawable.tz,
@@ -31,11 +40,11 @@ public class MainActivity extends AppCompatActivity {
 
     //存放图片的标题
     private String[] titles = new String[]{
-        "我是郭文鑫",
-        "我是黎超",
-        "我是陆建鑫",
-        "我是汤志",
-        "我是小磊磊"
+            "我是郭文鑫",
+            "我是黎超",
+            "我是陆建鑫",
+            "我是汤志",
+            "我是小磊磊"
     };
 
     @Override
@@ -65,17 +74,81 @@ public class MainActivity extends AppCompatActivity {
         adapter = new ViewPagerAdapter();
         viewPager.setAdapter(adapter);
 
-// TODO: 2017/4/10 0010 1.完成标题和圆点的改变
-// TODO: 2017/4/10 0010 2.实现自动轮播
+        //完成标题和圆点的改变
+        viewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+            @Override
+            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+            }
 
+            @Override
+            public void onPageSelected(int position) {
+                title.setText(titles[position]);
+
+                dots.get(position).setBackgroundResource(R.drawable.dot_focused);
+                dots.get(oldPosition).setBackgroundResource(R.drawable.dot_normal);
+
+                oldPosition = position;
+
+                currentItem = position;
+
+            }
+
+            @Override
+            public void onPageScrollStateChanged(int state) {
+            }
+        });
     }
 
-    private class ViewPagerAdapter extends PagerAdapter{
+    @Override
+    protected void onStart() {
+        super.onStart();
+        //开一个后台线程
+        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        //给线程池添加一个“定时调度任务”
+        //  延迟initialDelay时间后开始执行command，
+        // 并且按照period时间周期性重复调用（周期时间包括command运行时间，
+        // 如果周期时间比command运行时间断，则command运行完毕后，立刻重复运行））
+        scheduledExecutorService.scheduleWithFixedDelay(
+                new ViewpagerTask(),
+                2,
+                2,
+                TimeUnit.SECONDS
+        );
+    }
+
+    private class ViewpagerTask implements Runnable{
+        @Override
+        public void run() {
+            //取余来实现轮播
+            currentItem = (currentItem + 1) % imageIds.length;
+            mHandler.sendEmptyMessage(0);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (scheduledExecutorService != null){
+            scheduledExecutorService.shutdown();
+            scheduledExecutorService = null;
+        }
+    }
+
+    private Handler mHandler = new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            //第二个参数设置为false，不要滑动效果
+            viewPager.setCurrentItem(currentItem,false);
+        }
+    };
+
+    private class ViewPagerAdapter extends PagerAdapter {
         //获取当前窗体数量
         @Override
         public int getCount() {
             return imageIds.length;
         }
+
         //判断是否由对象生成界面
         @Override
         public boolean isViewFromObject(View view, Object object) {
